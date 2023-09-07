@@ -41,20 +41,27 @@
 ##################################################################################
 
 
+LOGGER=stdout
 
 # function 'stub_logger()'
 #
-# A logger which logs to the macOS Console.app using the 'syslog' command
+# A logger which logs to the macOS Console.app using the 'syslog' command or to
+# stdout.
 #
 # @param1  the log message
 # @return  void
 ################################################################################
-function stub_logger() {
-	syslog -s -k \
-		Facility com.apple.console \
-		Level Notice \
-		Sender "$(basename "$0")" \
-		Message "[$$][${CFBundleName:-$(basename "$0")}] $1"
+stub_logger() {
+	MSG="[$$][${CFBundleName:-$(basename \"$0\")}] ${1//[$'\t\r\n']/ }"
+	if [ $LOGGER = 'stdout' ]; then
+		echo "$MSG"
+	else
+		syslog -s -k \
+			Facility com.apple.console \
+			Level Notice \
+			Sender "$(basename "$0")" \
+			Message "$MSG"
+	fi
 }
 
 # function 'show_message()'
