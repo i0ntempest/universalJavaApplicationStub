@@ -57,6 +57,17 @@ function stub_logger() {
 		Message "[$$][${CFBundleName:-$(basename "$0")}] $1"
 }
 
+# function 'show_message()'
+#
+# Displays osascript dialog window
+#
+# @param1  Message title
+# @param2  Message text
+# @return  void
+################################################################################
+show_message() {
+	osascript -e activate -e "display dialog \"${1}\n\n${2}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1${DialogWithIcon}"
+}
 
 
 # set the directory abspath of the current
@@ -632,7 +643,7 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 		# log exit cause
 		stub_logger "[EXIT 4] ${MSG_JVMVERSION_REQ_INVALID_EXPANDED}"
 		# display error message with AppleScript
-		osascript -e "tell application \"System Events\" to display dialog \"${MSG_ERROR_LAUNCHING}\n\n${MSG_JVMVERSION_REQ_INVALID_EXPANDED}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1${DialogWithIcon}"
+		show_message "$MSG_ERROR_LAUNCHING" "$MSG_JVMVERSION_REQ_INVALID_EXPANDED"
 		# exit with error
 		exit 4
 	fi
@@ -642,7 +653,7 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 		# log exit cause
 		stub_logger "[EXIT 5] ${MSG_JVMVERSION_REQ_INVALID_EXPANDED}"
 		# display error message with AppleScript
-		osascript -e "tell application \"System Events\" to display dialog \"${MSG_ERROR_LAUNCHING}\n\n${MSG_JVMVERSION_REQ_INVALID_EXPANDED}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1${DialogWithIcon}"
+		show_message "$MSG_ERROR_LAUNCHING" "$MSG_JVMVERSION_REQ_INVALID_EXPANDED"
 		# exit with error
 		exit 5
 	fi
@@ -835,12 +846,12 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 	# different error messages when a specific JVM was required
 	if [ ! -z "${JVMVersion}" ] ; then
 		# display human readable java version (#28)
-		java_version_hr=$(echo ${JVMVersion} | sed -E 's/^1\.([0-9+*]+)$/ \1/g' | sed "s/+/ ${MSG_JAVA_VERSION_OR_LATER}/;s/*/ ${MSG_JAVA_VERSION_LATEST}/")
+		java_version_hr=$(echo ${JVMVersion} | sed -E 's/^1\.([0-9+*]+)$/\1/g' | sed "s/+/ ${MSG_JAVA_VERSION_OR_LATER}/;s/*/${MSG_JAVA_VERSION_LATEST}/")
 		MSG_NO_SUITABLE_JAVA_EXPANDED=$(printf "${MSG_NO_SUITABLE_JAVA}" "${java_version_hr}").
 
 		if [ ! -z "${JVMMaxVersion}" ] ; then
 			java_version_hr=$(extract_java_major_version ${JVMVersion})
-			java_version_max_hr=$(echo ${JVMMaxVersion} | sed -E 's/^1\.([0-9+*]+)$/ \1/g' | sed "s/+//;s/*/ ${MSG_JAVA_VERSION_LATEST}/")
+			java_version_max_hr=$(echo ${JVMMaxVersion} | sed -E 's/^1\.([0-9+*]+)$/\1/g' | sed "s/+//;s/*/ ${MSG_JAVA_VERSION_LATEST}/")
 			MSG_NO_SUITABLE_JAVA_EXPANDED="$(printf "${MSG_NO_SUITABLE_JAVA}" "${java_version_hr}") $(printf "${MSG_JAVA_VERSION_MAX}" "${java_version_max_hr}")"
 		fi
 
@@ -848,10 +859,13 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 		stub_logger "[EXIT 3] ${MSG_NO_SUITABLE_JAVA_EXPANDED}"
 
 		# display error message with AppleScript
-		osascript -e "tell application \"System Events\" to display dialog \"${MSG_ERROR_LAUNCHING}\n\n${MSG_NO_SUITABLE_JAVA_EXPANDED}\n${MSG_NO_SUITABLE_JAVA_CHECK}\" with title \"${CFBundleName}\"  buttons {\" OK \", \"${MSG_VISIT_JAVA_DOT_COM}\", \"${MSG_VISIT_ADOPTIUM}\"} default button 1${DialogWithIcon}" \
-				-e "set response to button returned of the result" \
-				-e "if response is \"${MSG_VISIT_JAVA_DOT_COM}\" then open location \"https://www.java.com/download/\"" \
-				-e "if response is \"${MSG_VISIT_ADOPTIUM}\" then open location \"https://adoptium.net/releases.html\""
+		osascript <<EOF
+			activate
+			set DIALOG to (display dialog "${MSG_ERROR_LAUNCHING}\n\n${MSG_NO_SUITABLE_JAVA_EXPANDED}\n${MSG_NO_SUITABLE_JAVA_CHECK}" with title "${CFBundleName}"  buttons {" OK ", "${MSG_VISIT_JAVA_DOT_COM}", "${MSG_VISIT_ADOPTIUM}"} default button 1 with icon stop)
+			set response to button returned of DIALOG
+			if response is "${MSG_VISIT_JAVA_DOT_COM}" then open location "https://www.java.com/download/"
+			if response is "${MSG_VISIT_ADOPTIUM}" then open location "https://adoptium.net/releases.html"
+EOF
 		# exit with error
 		exit 3
 
@@ -859,10 +873,13 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 		# log exit cause
 		stub_logger "[EXIT 1] ${MSG_ERROR_LAUNCHING}"
 		# display error message with AppleScript
-		osascript -e "tell application \"System Events\" to display dialog \"${MSG_ERROR_LAUNCHING}\n\n${MSG_INSTALL_JAVA}\" with title \"${CFBundleName}\" buttons {\"${MSG_LATER}\", \"${MSG_VISIT_JAVA_DOT_COM}\", \"${MSG_VISIT_ADOPTIUM}\"} default button 1${DialogWithIcon}" \
-					-e "set response to button returned of the result" \
-					-e "if response is \"${MSG_VISIT_JAVA_DOT_COM}\" then open location \"https://www.java.com/download/\"" \
-					-e "if response is \"${MSG_VISIT_ADOPTIUM}\" then open location \"https://adoptium.net/releases.html\""
+		osascript <<EOF
+			activate
+			set DIALOG to (display dialog "${MSG_ERROR_LAUNCHING}\n\n${MSG_INSTALL_JAVA}" with title "${CFBundleName}" buttons {"${MSG_LATER}", "${MSG_VISIT_JAVA_DOT_COM}", "${MSG_VISIT_ADOPTIUM}"} default button 1 with icon stop)
+			set response to button returned of DIALOG
+			if response is "${MSG_VISIT_JAVA_DOT_COM}" then open location "https://www.java.com/download/"
+			if response is "${MSG_VISIT_ADOPTIUM}" then open location "https://adoptium.net/releases.html"
+EOF
 		# exit with error
 		exit 1
 	fi
@@ -877,7 +894,7 @@ if [ -z "${JVMMainClass}" ]; then
 	# log exit cause
 	stub_logger "[EXIT 2] ${MSG_MISSING_MAINCLASS}"
 	# display error message with AppleScript
-	osascript -e "tell application \"System Events\" to display dialog \"${MSG_ERROR_LAUNCHING}\n\n${MSG_MISSING_MAINCLASS}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1${DialogWithIcon}"
+	show_message "$MSG_ERROR_LAUNCHING" "$MSG_MISSING_MAINCLASS"
 	# exit with error
 	exit 2
 fi
