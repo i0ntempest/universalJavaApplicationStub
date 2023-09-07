@@ -583,6 +583,76 @@ is_valid_requirement_pattern() {
 	fi
 }
 
+is_java_compatible_version() {
+	local comp=$1
+	local ver=$2
+	local path=$3
+    local item=$4
+
+	# pre-requisite: current version number needs to be greater than min version number
+	if [ "$comp" -ge "$minC" ] ; then
+
+		# perform max version checks if max version requirement is present
+		if [ ! -z ${JVMMaxVersion} ] ; then
+
+			# max version requirement ends with '*' modifier
+			if [[ ${JVMMaxVersion} == *\* ]] ; then
+
+				# use the '*' modifier from the max version string as wildcard for a 'starts with' comparison
+				# and check whether the current version number starts with the max version wildcard string
+				if [[ ${ver} == ${JVMMaxVersion} ]]; then
+					return 0
+
+				# or whether the current comparable version is lower than the comparable max version
+				elif [ "$comp" -le "$maxC" ] ; then
+					return 0
+				fi
+
+			# max version requirement ends with '+' modifier -> always add this version if it's greater than $min
+			# because a max requirement with + modifier doesn't make sense
+			elif [[ ${JVMMaxVersion} == *+ ]] ; then
+				return 0
+
+			# matches 6 zeros at the end of the max version string (e.g. for 1.8, 9)
+			# -> then the max version string should be treated like with a '*' modifier at the end
+			#elif [[ ${maxC} =~ ^[0-9]{2}0{6}$ ]] && [ "$comp" -le $(( ${maxC#0} + 999 )) ] ; then
+			#	return 0
+
+			# matches 3 zeros at the end of the max version string (e.g. for 9.1, 10.3)
+			# -> then the max version string should be treated like with a '*' modifier at the end
+			#elif [[ ${maxC} =~ ^[0-9]{5}0{3}$ ]] && [ "$comp" -le "${maxC}" ] ; then
+			#	return 0
+
+			# matches standard requirements without modifier
+			elif [ "$comp" -le "$maxC" ]; then
+				return 0
+			fi
+
+		# no max version requirement:
+
+		# min version requirement ends with '+' modifier
+		# -> always add the current version because it's greater than $min
+		elif [[ ${JVMVersion} == *+ ]] ; then
+			return 0
+
+		# min version requirement ends with '*' modifier
+		# -> use the '*' modifier from the min version string as wildcard for a 'starts with' comparison
+		#    and check whether the current version number starts with the min version wildcard string
+		elif [[ ${JVMVersion} == *\* ]] ; then
+			if [[ ${ver} == ${JVMVersion} ]] ; then
+				return 0
+			fi
+
+		# compare the min version against the current version with an additional * wildcard for a 'starts with' comparison
+		# -> e.g. add 1.8.0_44 when the requirement is 1.8
+		elif [[ ${ver} == ${JVMVersion}* ]] ; then
+				return 0
+		fi
+	fi
+
+	return 1
+}
+
 
 
 # determine which JVM to use
@@ -595,37 +665,48 @@ apple_jre_version=$(get_java_version_from_cmd "${apple_jre_plugin}")
 oracle_jre_plugin="/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Home/bin/java"
 oracle_jre_version=$(get_java_version_from_cmd "${oracle_jre_plugin}")
 
+minC=$(get_comparable_java_version ${JVMVersion})
+maxC=$(get_comparable_java_version ${JVMMaxVersion})
+
 
 # first check system variable "$JAVA_HOME" -> has precedence over any other System JVM
 stub_logger '[JavaSearch] Checking for $JAVA_HOME ...'
-if [ "$JVMUseJavaHome" != "false" ] && [ -n "$JAVA_HOME" ] ; then
+if [ "$JVMUseJavaHome" = "false" ]; then
+	stub_logger "[JavaSearch] ... Use of JAVA_HOME disabled in info.plist"
+elif [ -n "$JAVA_HOME" ] ; then
 	stub_logger "[JavaSearch] ... found JAVA_HOME with value $JAVA_HOME"
 
 	# PR 26: Allow specifying "$JAVA_HOME" relative to "$AppPackageFolder"
 	# which allows for bundling a custom version of Java inside your app!
 	if [[ $JAVA_HOME == /* ]] ; then
 		# if "$JAVA_HOME" starts with a Slash it's an absolute path
-		JAVACMD="$JAVA_HOME/bin/java"
-		stub_logger "[JavaSearch] ... parsing JAVA_HOME as absolute path to the executable '$JAVACMD'"
+		javaHomeCmdPath="$JAVA_HOME/bin/java"
+		stub_logger "[JavaSearch] ... parsing JAVA_HOME as absolute path to the executable '$javaHomeCmdPath'"
 	else
 		# otherwise it's a relative path to "$AppPackageFolder"
-		JAVACMD="$AppPackageFolder/$JAVA_HOME/bin/java"
-		stub_logger "[JavaSearch] ... parsing JAVA_HOME as relative path inside the App bundle to the executable '$JAVACMD'"
+		javaHomeCmdPath="$AppPackageFolder/$JAVA_HOME/bin/java"
+		stub_logger "[JavaSearch] ... parsing JAVA_HOME as relative path inside the App bundle to the executable '$javaHomeCmdPath'"
 	fi
-	JAVACMD_version=$(get_comparable_java_version $(get_java_version_from_cmd "${JAVACMD}"))
+	homeVersion=$(get_java_version_from_cmd "${javaHomeCmdPath}")
+	homeVersionComp=$(get_comparable_java_version "${homeVersion}")
+	item="$homeVersionComp:$homeVersion:$javaHomeCmdPath"
+
+	if [ ! -x "$javaHomeCmdPath" ]; then
+		stub_logger "[JavaSearch] ... File does not exist or is not executable: $javaHomeCmdPath"
+	elif is_java_compatible_version "$homeVersionComp" "$homeVersion" "$javaHomeCmdPath" "$item"; then
+		stub_logger "[JavaSearch] ... Using compatible JAVA_HOME version: $JAVA_HOME"
+		JAVACMD=$javaHomeCmdPath
+		JAVACMD_version=$homeVersionComp
+	else
+		stub_logger "[JavaSearch] ... JAVA_HOME contains unsupported version: $JAVA_HOME"
+	fi
 else
 	stub_logger "[JavaSearch] ... haven't found JAVA_HOME"
 fi
 
 
 # check for any other or a specific Java version
-# also if $JAVA_HOME exists but isn't executable
-if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
-
-	# add a warning in the syslog if JAVA_HOME is not executable or not found (#100)
-	if [ -n "$JAVA_HOME" ] ; then
-		stub_logger "[JavaSearch] ... but no 'java' executable was found at the JAVA_HOME location!"
-	fi
+if [ -z "${JAVACMD}" ]; then
 
 	stub_logger "[JavaSearch] Searching for JavaVirtualMachines on the system ..."
 	# reset variables
@@ -712,9 +793,6 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 	# determine JVMs matching the min/max version requirement
 
 	stub_logger "[JavaSearch] Filtering the result list for JVMs matching the min/max version requirement ..."
-
-	minC=$(get_comparable_java_version ${JVMVersion})
-	maxC=$(get_comparable_java_version ${JVMMaxVersion})
 	matchingJVMs=()
 
 	for i in "${allJVMs[@]}"
@@ -730,65 +808,8 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 		# construct string item for adding to the "matchingJVMs" array
 		item="$comp:$ver:$path"
 
-		# pre-requisite: current version number needs to be greater than min version number
-		if [ "$comp" -ge "$minC" ] ; then
-
-			# perform max version checks if max version requirement is present
-			if [ ! -z ${JVMMaxVersion} ] ; then
-
-				# max version requirement ends with '*' modifier
-				if [[ ${JVMMaxVersion} == *\* ]] ; then
-
-					# use the '*' modifier from the max version string as wildcard for a 'starts with' comparison
-					# and check whether the current version number starts with the max version wildcard string
-					if [[ ${ver} == ${JVMMaxVersion} ]]; then
-						matchingJVMs+=("$item")
-
-					# or whether the current comparable version is lower than the comparable max version
-					elif [ "$comp" -le "$maxC" ] ; then
-						matchingJVMs+=("$item")
-					fi
-
-				# max version requirement ends with '+' modifier -> always add this version if it's greater than $min
-				# because a max requirement with + modifier doesn't make sense
-				elif [[ ${JVMMaxVersion} == *+ ]] ; then
-					matchingJVMs+=("$item")
-
-				# matches 6 zeros at the end of the max version string (e.g. for 1.8, 9)
-				# -> then the max version string should be treated like with a '*' modifier at the end
-				#elif [[ ${maxC} =~ ^[0-9]{2}0{6}$ ]] && [ "$comp" -le $(( ${maxC#0} + 999 )) ] ; then
-				#	matchingJVMs+=("$item")
-
-				# matches 3 zeros at the end of the max version string (e.g. for 9.1, 10.3)
-				# -> then the max version string should be treated like with a '*' modifier at the end
-				#elif [[ ${maxC} =~ ^[0-9]{5}0{3}$ ]] && [ "$comp" -le "${maxC}" ] ; then
-				#	matchingJVMs+=("$item")
-
-				# matches standard requirements without modifier
-				elif [ "$comp" -le "$maxC" ]; then
-					matchingJVMs+=("$item")
-				fi
-
-			# no max version requirement:
-
-			# min version requirement ends with '+' modifier
-			# -> always add the current version because it's greater than $min
-			elif [[ ${JVMVersion} == *+ ]] ; then
-				matchingJVMs+=("$item")
-
-			# min version requirement ends with '*' modifier
-			# -> use the '*' modifier from the min version string as wildcard for a 'starts with' comparison
-			#    and check whether the current version number starts with the min version wildcard string
-			elif [[ ${JVMVersion} == *\* ]] ; then
-				if [[ ${ver} == ${JVMVersion} ]] ; then
-					matchingJVMs+=("$item")
-				fi
-
-			# compare the min version against the current version with an additional * wildcard for a 'starts with' comparison
-			# -> e.g. add 1.8.0_44 when the requirement is 1.8
-			elif [[ ${ver} == ${JVMVersion}* ]] ; then
-					matchingJVMs+=("$item")
-			fi
+		if is_java_compatible_version "$comp" "$ver" "$path" "$item"; then
+			matchingJVMs+=("$item")
 		fi
 	done
 	# unset for loop variables
