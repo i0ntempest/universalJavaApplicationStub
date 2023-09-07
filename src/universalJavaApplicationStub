@@ -344,7 +344,7 @@ done
 ############################################
 
 # supported languages / available translations
-stubLanguages=("de" "en" "es" "fr" "pt-BR" "zh")
+stubLanguages=("de" "cs" "sk" "en" "es" "fr" "pt-BR" "zh")
 
 # read user preferred languages as defined in macOS System Preferences (#101)
 stub_logger '[LanguageSearch] Checking preferred languages in macOS System Preferences...'
@@ -451,6 +451,22 @@ pt-BR)
 	MSG_LATER="Depois"
 	MSG_VISIT_JAVA_DOT_COM="Java por Oracle"
 	MSG_VISIT_ADOPTIUM="Java por Adoptium"
+	;;
+
+# Czech (Also used for Slovak)
+cs|sk)
+	MSG_ERROR_LAUNCHING="Chyba při spouštění '${CFBundleName}'."
+	MSG_MISSING_MAINCLASS="'MainClass' není definována!\nAplikaci nezle spustit!"
+	MSG_JVMVERSION_REQ_INVALID="Syntaxe požadované verze Java není validní: %s\nProsím kontaktujte vývojáře aplikace."
+	MSG_NO_SUITABLE_JAVA="Ve vašem počítači nebyla nalezena vhodná verze Java. Aplikace vyžaduje verzi %s"
+	MSG_JAVA_VERSION_OR_LATER="nebo později"
+	MSG_JAVA_VERSION_LATEST="(nejnovější aktualizace)"
+	MSG_JAVA_VERSION_MAX="až %s"
+	MSG_NO_SUITABLE_JAVA_CHECK="Prosím nainstalujte Java v požadované verzi."
+	MSG_INSTALL_JAVA="Na Vašim počítači musí být nainstalována Java!\nProsím navštivte jednu z níže odkazovaných stránek a nainstalujte ji."
+	MSG_LATER="Později"
+	MSG_VISIT_JAVA_DOT_COM="Oracle Java"
+	MSG_VISIT_ADOPTIUM="Temurin Java"
 	;;
 
 # English | default
@@ -634,7 +650,7 @@ if [ -z "${JAVACMD}" ] || [ ! -x "${JAVACMD}" ] ; then
 
 	# find installed JavaVirtualMachines (JDK + JRE)
 	allJVMs=()
-	
+
 	# read JDK's from '/usr/libexec/java_home --xml' command with PlistBuddy and a custom Dict iterator
 	# idea: https://stackoverflow.com/a/14085460/1128689 and https://scriptingosx.com/2018/07/parsing-dscl-output-in-scripts/
 	javaXml=$(/usr/libexec/java_home --xml)
