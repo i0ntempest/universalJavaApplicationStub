@@ -66,7 +66,7 @@ function stub_logger() {
 # @return  void
 ################################################################################
 show_message() {
-	osascript -e activate -e "display dialog \"${1}\n\n${2}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1${DialogWithIcon}"
+	osascript -e activate -e "display dialog \"${1}\n\n${2}\" with title \"${CFBundleName}\" buttons {\" OK \"} default button 1 with icon stop"
 }
 
 
@@ -312,20 +312,6 @@ else
 	JVMVersion=$(plist_get ':JVMVersion' | xargs)
 	# post processing of the version string follows below...
 fi
-
-
-# (#75) check for undefined icons or icon names without .icns extension and prepare
-# an osascript statement for those cases when the icon can be shown in the dialog
-DialogWithIcon=""
-if [ ! -z ${CFBundleIconFile} ]; then
-	if [[ ${CFBundleIconFile} == *.icns ]] && [[ -f "${ResourcesFolder}/${CFBundleIconFile}" ]] ; then
-		DialogWithIcon=" with icon path to resource \"${CFBundleIconFile}\" in bundle (path to me)"
-	elif [[ ${CFBundleIconFile} != *.icns ]] && [[ -f "${ResourcesFolder}/${CFBundleIconFile}.icns" ]] ; then
-		CFBundleIconFile+=".icns"
-		DialogWithIcon=" with icon path to resource \"${CFBundleIconFile}\" in bundle (path to me)"
-	fi
-fi
-
 
 # JVMVersion: post processing and optional splitting
 if [[ ${JVMVersion} == *";"* ]]; then
@@ -939,3 +925,4 @@ exec "${JAVACMD}" \
 		"${JVMMainClass}"\
 		${MainArgsArr:+ "${MainArgsArr[@]}"}\
 		${ArgsPassthru:+ "${ArgsPassthru[@]}"}
+
