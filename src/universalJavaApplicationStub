@@ -126,6 +126,7 @@ InfoPlistFile="${AppPackageFolder}"/Contents/Info.plist
 JVMVersion=""
 JVMMaxVersion=""
 JVMUseJavaHome=""
+JVMEmbeddedJavaPath=""
 
 
 # function 'plist_get()'
@@ -257,6 +258,7 @@ if [ $exitcode -eq 0 ]; then
 	JVMVersion=$(plist_get_java ':JVMVersion' | xargs)
 	# post processing of the version string follows below...
 	JVMUseJavaHome=$(plist_get_java ':JVMUseJavaHome' | xargs)
+	JVMEmbeddedJavaPath=$(plist_get_java ':JVMEmbeddedJavaPath' | xargs)
 
 
 # read 'Info.plist' file in Oracle style
@@ -320,6 +322,7 @@ else
 	JVMVersion=$(plist_get ':JVMVersion' | xargs)
 	# post processing of the version string follows below...
 	JVMUseJavaHome=$(plist_get ':JVMUseJavaHome' | xargs)
+	JVMEmbeddedJavaPath=$(plist_get ':JVMEmbeddedJavaPath' | xargs)
 fi
 
 # JVMVersion: post processing and optional splitting
@@ -668,24 +671,15 @@ oracle_jre_version=$(get_java_version_from_cmd "${oracle_jre_plugin}")
 minC=$(get_comparable_java_version ${JVMVersion})
 maxC=$(get_comparable_java_version ${JVMMaxVersion})
 
-
-# first check system variable "$JAVA_HOME" -> has precedence over any other System JVM
-stub_logger '[JavaSearch] Checking for $JAVA_HOME ...'
-if [ "$JVMUseJavaHome" = "false" ]; then
-	stub_logger "[JavaSearch] ... Use of JAVA_HOME disabled in info.plist"
-elif [ -n "$JAVA_HOME" ] ; then
-	stub_logger "[JavaSearch] ... found JAVA_HOME with value $JAVA_HOME"
-
-	# PR 26: Allow specifying "$JAVA_HOME" relative to "$AppPackageFolder"
-	# which allows for bundling a custom version of Java inside your app!
-	if [[ $JAVA_HOME == /* ]] ; then
-		# if "$JAVA_HOME" starts with a Slash it's an absolute path
-		javaHomeCmdPath="$JAVA_HOME/bin/java"
-		stub_logger "[JavaSearch] ... parsing JAVA_HOME as absolute path to the executable '$javaHomeCmdPath'"
+tryLocalVersion() {
+	if [[ $1 == /* ]] ; then
+		# if path starts with a Slash it's an absolute path
+		javaHomeCmdPath="$1/bin/java"
+		stub_logger "[JavaSearch] ... parsing $2 as absolute path to the executable '$javaHomeCmdPath'"
 	else
 		# otherwise it's a relative path to "$AppPackageFolder"
-		javaHomeCmdPath="$AppPackageFolder/$JAVA_HOME/bin/java"
-		stub_logger "[JavaSearch] ... parsing JAVA_HOME as relative path inside the App bundle to the executable '$javaHomeCmdPath'"
+		javaHomeCmdPath="$AppPackageFolder/$1/bin/java"
+		stub_logger "[JavaSearch] ... parsing $2 as relative path inside the App bundle to the executable '$javaHomeCmdPath'"
 	fi
 	homeVersion=$(get_java_version_from_cmd "${javaHomeCmdPath}")
 	homeVersionComp=$(get_comparable_java_version "${homeVersion}")
@@ -694,16 +688,30 @@ elif [ -n "$JAVA_HOME" ] ; then
 	if [ ! -x "$javaHomeCmdPath" ]; then
 		stub_logger "[JavaSearch] ... File does not exist or is not executable: $javaHomeCmdPath"
 	elif is_java_compatible_version "$homeVersionComp" "$homeVersion" "$javaHomeCmdPath" "$item"; then
-		stub_logger "[JavaSearch] ... Using compatible JAVA_HOME version: $JAVA_HOME"
+		stub_logger "[JavaSearch] ... Using compatible $2 version: $1"
 		JAVACMD=$javaHomeCmdPath
 		JAVACMD_version=$homeVersionComp
 	else
-		stub_logger "[JavaSearch] ... JAVA_HOME contains unsupported version: $JAVA_HOME"
+		stub_logger "[JavaSearch] ... $2 contains unsupported version: $1"
 	fi
-else
+}
+
+# first check system variable "$JAVA_HOME" -> has precedence over any other System JVM
+stub_logger '[JavaSearch] Checking for $JAVA_HOME ...'
+if [ "$JVMUseJavaHome" = "true" ] && [ -n "$JAVA_HOME" ]; then
+	stub_logger "[JavaSearch] ... found JAVA_HOME with value $JAVA_HOME"
+	tryLocalVersion "$JAVA_HOME" "JAVA_HOME"
+elif [ "$JVMUseJavaHome" = "true" ]; then
 	stub_logger "[JavaSearch] ... haven't found JAVA_HOME"
+else
+	stub_logger "[JavaSearch] ... using JAVA_HOME is disabled"
 fi
 
+# check for embedded Java
+if [ -z "${JAVACMD}" ] && [ -n "$JVMEmbeddedJavaPath" ]; then
+	stub_logger "[JavaSearch] Checking defined JVMEmbeddedJavaPath from Info.plist ..."
+	tryLocalVersion "$JVMEmbeddedJavaPath" "JVMEmbeddedJavaPath"
+fi
 
 # check for any other or a specific Java version
 if [ -z "${JAVACMD}" ]; then
