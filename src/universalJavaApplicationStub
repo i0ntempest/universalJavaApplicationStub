@@ -11,8 +11,8 @@
 #                                                                                #
 # @author    Tobias Fischer                                                      #
 # @url       https://github.com/tofi86/universalJavaApplicationStub              #
-# @date      2023-02-04                                                          #
-# @version   3.3.0                                                               #
+# @date      2024-04-24                                                          #
+# @version   3.4.0                                                               #
 #                                                                                #
 ##################################################################################
 #                                                                                #
@@ -41,7 +41,7 @@
 ##################################################################################
 
 
-LOGGER=stdout
+#LOGGER=stdout
 
 # function 'stub_logger()'
 #
@@ -578,8 +578,9 @@ is_valid_requirement_pattern() {
 	local java_req=$1
 	java8pattern='1\.[4-8](\.[0-9]+)?(\.0_[0-9]+)?[*+]?'
 	java9pattern='(9|1[0-9])(-ea|[*+]|(\.[0-9]+){1,2}[*+]?)?'
+	java10pluspattern='([0-9]{2})(-ea|[*+]|(\.[0-9]+){1,2}[*+]?)?'
 	# test matches either old Java versioning scheme (up to 1.8) or new scheme (starting with 9)
-	if [[ ${java_req} =~ ^(${java8pattern}|${java9pattern})$ ]]; then
+	if [[ ${java_req} =~ ^(${java8pattern}|${java9pattern}|${java10pluspattern})$ ]]; then
 		return 0
 	else
 		return 1
